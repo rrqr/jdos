@@ -7,6 +7,8 @@ import pycurl
 from colorama import Fore, Style
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+import signal
+import sys
 
 # متغير لتتبع حالة إيقاف الهجوم
 stop_attack_flag = multiprocessing.Value('b', False)
@@ -117,8 +119,15 @@ def execute_attack(target):
     except Exception as e:
         print(f"Error during attack: {str(e)}")
 
+def signal_handler(sig, frame):
+    with stop_attack_flag.get_lock():
+        stop_attack_flag.value = True
+    print(Fore.RED + "Attack stopped." + Style.RESET_ALL)
+    sys.exit(0)
+
 def main():
     try:
+        signal.signal(signal.SIGINT, signal_handler)
         display_banner()
         password_prompt()
     except Exception as e:
